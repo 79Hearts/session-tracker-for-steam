@@ -1,0 +1,38 @@
+<!--
+  ~ Copyright (C) 2026 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Three rounded vertical bars, anchored at the bottom -->
+    <!-- Left bar: medium height, silver-gray (Steam logo color) -->
+    <path
+        android:pathData="M28,42 L36,42 A4,4 0 0 1 40,46 L40,78 A4,4 0 0 1 36,82 L28,82 A4,4 0 0 1 24,78 L24,46 A4,4 0 0 1 28,42 Z"
+        android:fillColor="#8F98A0" />
+
+    <!-- Middle bar: tallest, bright Steam blue (headline color) -->
+    <path
+        android:pathData="M50,30 L58,30 A4,4 0 0 1 62,34 L62,78 A4,4 0 0 1 58,82 L50,82 A4,4 0 0 1 46,78 L46,34 A4,4 0 0 1 50,30 Z"
+        android:fillColor="#66C0F4" />
+
+    <!-- Right bar: shortest, light gray (subtitle text color) -->
+    <path
+        android:pathData="M72,54 L80,54 A4,4 0 0 1 84,58 L84,78 A4,4 0 0 1 80,82 L72,82 A4,4 0 0 1 68,78 L68,58 A4,4 0 0 1 72,54 Z"
+        android:fillColor="#C7D5E0" />
+
+</vector>
