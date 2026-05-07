@@ -8,6 +8,13 @@ local.properties
 *.jks
 *.keystore
 
+# Release artifacts
+*.aab
+*.apk
+
+# Heap dumps
+*.hprof
+
 # IDE files
 .idea/
 *.iml
