@@ -3,6 +3,7 @@ package com.steamtimeline.app.ui.home
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -28,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,6 +50,7 @@ private const val PAGE_COUNT = 30
 fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToSummary: () -> Unit,
+    onNavigateToGameHistory: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val activeSession by viewModel.activeSession.collectAsStateWithLifecycle()
@@ -112,16 +116,25 @@ fun HomeScreen(
                 // page 0 = oldest (29 days ago), page (PAGE_COUNT-1) = today.
                 // Swiping right decreases page index → reaches older days.
                 val daysAgo = (PAGE_COUNT - 1) - page
-                DayPage(daysAgo = daysAgo, viewModel = viewModel)
+                DayPage(
+                    daysAgo = daysAgo,
+                    viewModel = viewModel,
+                    onGameClick = onNavigateToGameHistory
+                )
             }
         }
     }
 }
 
 @Composable
-private fun DayPage(daysAgo: Int, viewModel: HomeViewModel) {
+private fun DayPage(daysAgo: Int, viewModel: HomeViewModel, onGameClick: (String) -> Unit = {}) {
     val flow = remember(daysAgo) { viewModel.dayStateFlow(daysAgo) }
     val state by flow.collectAsStateWithLifecycle(initialValue = DayUiState(daysAgo = daysAgo))
+
+    val zone = ZoneId.systemDefault()
+    val date = remember(daysAgo) { LocalDate.now().minusDays(daysAgo.toLong()) }
+    val dayStart = remember(daysAgo) { date.atStartOfDay(zone).toInstant().toEpochMilli() }
+    val dayEnd = remember(daysAgo) { date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -148,7 +161,12 @@ private fun DayPage(daysAgo: Int, viewModel: HomeViewModel) {
             }
         } else {
             items(state.sessions.sortedByDescending { it.startTime }) { session ->
-                SessionCard(session = session)
+                SessionCard(
+                    session = session,
+                    dayStart = dayStart,
+                    dayEnd = dayEnd,
+                    onClick = { onGameClick(session.gameName) }
+                )
             }
         }
         item {
@@ -345,65 +363,101 @@ private fun DrawScope.drawTimelineSegment(
 }
 
 @Composable
-private fun SessionCard(session: GameSession) {
+private fun SessionCard(
+    session: GameSession,
+    dayStart: Long = 0L,
+    dayEnd: Long = Long.MAX_VALUE,
+    onClick: () -> Unit = {}
+) {
     val accent = gameColor(session.appId)
-    val duration = session.durationSeconds.let { secs ->
-        val h = secs / 3600
-        val m = (secs % 3600) / 60
-        val s = secs % 60
-        when {
-            h > 0 -> "${h}h ${m}m"
-            m > 0 -> "${m}m ${s}s"
-            else -> "${s}s"
-        }
+
+    // Rollover detection
+    val isRolloverStart = session.endTime != null && session.endTime >= dayEnd   // Day 1: started today, ends tomorrow
+    val isRolloverEnd = session.startTime < dayStart                              // Day 2: started yesterday, ends today
+    val rolloverColor = Color(0xFFFFB300)
+
+    // Clipped display times
+    val displayStart = if (isRolloverEnd) "12:00 AM" else formatTime(session.startTime)
+    val displayEnd = when {
+        isRolloverStart -> "11:59 PM"
+        session.endTime != null -> formatTime(session.endTime)
+        else -> "Now"
+    }
+
+    // Clipped duration (only the portion within this day)
+    val displayDurationSeconds = when {
+        isRolloverEnd -> ((session.endTime ?: System.currentTimeMillis()) - dayStart) / 1000
+        isRolloverStart -> (dayEnd - session.startTime) / 1000
+        else -> session.durationSeconds
+    }
+    val duration = formatDuration(displayDurationSeconds)
+
+    // Partial border modifier for rollover cards
+    val cardModifier = when {
+        isRolloverStart -> Modifier.fillMaxWidth()
+            .partialBorder(rolloverColor, 2.dp, drawTop = true, drawBottom = true, drawStart = true, drawEnd = false)
+        isRolloverEnd -> Modifier.fillMaxWidth()
+            .partialBorder(rolloverColor, 2.dp, drawTop = true, drawBottom = true, drawStart = false, drawEnd = true)
+        else -> Modifier.fillMaxWidth()
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = cardModifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = SteamCardBg)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(48.dp)
-                    .background(color = accent, shape = RoundedCornerShape(2.dp))
-            )
-
-            AsyncImage(
-                model = steamHeaderUrl(session.appId),
-                contentDescription = session.gameName,
-                modifier = Modifier.size(64.dp, 30.dp).clip(RoundedCornerShape(4.dp)),
-                contentScale = ContentScale.Crop
-            )
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    session.gameName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+        Column {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(48.dp)
+                        .background(color = accent, shape = RoundedCornerShape(2.dp))
                 )
+
+                AsyncImage(
+                    model = steamHeaderUrl(session.appId),
+                    contentDescription = session.gameName,
+                    modifier = Modifier.size(64.dp, 30.dp).clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        session.gameName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "$displayStart – $displayEnd",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SteamLightGray.copy(alpha = 0.6f)
+                    )
+                }
+
                 Text(
-                    "${formatTime(session.startTime)} – ${session.endTime?.let { formatTime(it) } ?: "Now"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SteamLightGray.copy(alpha = 0.6f)
+                    duration,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = accent,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 
-            Text(
-                duration,
-                style = MaterialTheme.typography.bodyMedium,
-                color = accent,
-                fontWeight = FontWeight.SemiBold
-            )
+            if (isRolloverStart || isRolloverEnd) {
+                Text(
+                    text = if (isRolloverStart) "midnight rollover →" else "← midnight rollover",
+                    modifier = Modifier.padding(start = 28.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = rolloverColor
+                )
+            }
         }
     }
 }
@@ -482,3 +536,30 @@ private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 fun formatTime(epochMs: Long): String =
     Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).format(timeFormatter)
+
+fun formatDuration(seconds: Long): String {
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return when {
+        h > 0 -> "${h}h ${m}m"
+        m > 0 -> "${m}m ${s}s"
+        else -> "${s}s"
+    }
+}
+
+private fun Modifier.partialBorder(
+    color: Color,
+    strokeWidth: Dp,
+    drawTop: Boolean = false,
+    drawBottom: Boolean = false,
+    drawStart: Boolean = false,
+    drawEnd: Boolean = false
+): Modifier = this.drawBehind {
+    val stroke = strokeWidth.toPx()
+    val half = stroke / 2f
+    if (drawTop) drawLine(color, Offset(0f, half), Offset(size.width, half), stroke)
+    if (drawBottom) drawLine(color, Offset(0f, size.height - half), Offset(size.width, size.height - half), stroke)
+    if (drawStart) drawLine(color, Offset(half, 0f), Offset(half, size.height), stroke)
+    if (drawEnd) drawLine(color, Offset(size.width - half, 0f), Offset(size.width - half, size.height), stroke)
+}

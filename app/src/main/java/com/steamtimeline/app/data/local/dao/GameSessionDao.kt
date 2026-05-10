@@ -19,14 +19,17 @@ interface GameSessionDao {
     @Query("SELECT * FROM game_sessions WHERE endTime IS NULL LIMIT 1")
     fun observeActiveSession(): Flow<GameSession?>
 
-    @Query("SELECT * FROM game_sessions WHERE startTime >= :startMs AND startTime < :endMs ORDER BY startTime ASC")
+    @Query("SELECT * FROM game_sessions WHERE startTime < :endMs AND (endTime IS NULL OR endTime >= :startMs) ORDER BY startTime ASC")
     fun getSessionsBetween(startMs: Long, endMs: Long): Flow<List<GameSession>>
 
-    @Query("SELECT SUM(durationSeconds) FROM game_sessions WHERE startTime >= :startMs AND startTime < :endMs")
+    @Query("SELECT SUM((MIN(COALESCE(endTime, :endMs), :endMs) - MAX(startTime, :startMs)) / 1000) FROM game_sessions WHERE startTime < :endMs AND (endTime IS NULL OR endTime >= :startMs) AND endTime IS NOT NULL")
     fun getTotalPlaytimeBetween(startMs: Long, endMs: Long): Flow<Long?>
 
-    @Query("SELECT COUNT(DISTINCT appId) FROM game_sessions WHERE startTime >= :startMs AND startTime < :endMs")
+    @Query("SELECT COUNT(DISTINCT appId) FROM game_sessions WHERE startTime < :endMs AND (endTime IS NULL OR endTime >= :startMs)")
     fun getDistinctGamesBetween(startMs: Long, endMs: Long): Flow<Int>
+
+    @Query("SELECT * FROM game_sessions WHERE gameName = :gameName ORDER BY startTime DESC")
+    fun getSessionsForGame(gameName: String): Flow<List<GameSession>>
 
     @Query("SELECT * FROM game_sessions ORDER BY startTime DESC")
     fun getAllSessions(): Flow<List<GameSession>>

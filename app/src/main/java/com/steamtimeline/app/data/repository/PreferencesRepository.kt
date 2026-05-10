@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,10 +23,12 @@ class PreferencesRepository @Inject constructor(
     private val apiKeyPref = stringPreferencesKey("api_key")
     private val steamIdPref = stringPreferencesKey("steam_id")
     private val monitoringEnabledPref = booleanPreferencesKey("monitoring_enabled")
+    private val pollIntervalPref = intPreferencesKey("poll_interval_seconds")
 
     val apiKey: Flow<String> = context.dataStore.data.map { it[apiKeyPref] ?: "" }
     val steamId: Flow<String> = context.dataStore.data.map { it[steamIdPref] ?: "" }
     val monitoringEnabled: Flow<Boolean> = context.dataStore.data.map { it[monitoringEnabledPref] ?: true }
+    val pollIntervalSeconds: Flow<Int> = context.dataStore.data.map { it[pollIntervalPref] ?: 60 }
 
     suspend fun saveApiKey(key: String) {
         context.dataStore.edit { it[apiKeyPref] = key }
@@ -37,5 +40,9 @@ class PreferencesRepository @Inject constructor(
 
     suspend fun setMonitoringEnabled(enabled: Boolean) {
         context.dataStore.edit { it[monitoringEnabledPref] = enabled }
+    }
+
+    suspend fun setPollIntervalSeconds(seconds: Int) {
+        context.dataStore.edit { it[pollIntervalPref] = seconds }
     }
 }

@@ -104,7 +104,7 @@ fun SettingsScreen(
                             color = SteamLightGray
                         )
                         Text(
-                            if (uiState.monitoringEnabled) "Polling every 60 seconds"
+                            if (uiState.monitoringEnabled) "Polling every ${uiState.pollIntervalSeconds}s"
                             else "Off — sessions will not be recorded",
                             style = MaterialTheme.typography.bodySmall,
                             color = SteamLightGray.copy(alpha = 0.6f)
@@ -120,6 +120,11 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            PollIntervalCard(
+                selectedInterval = uiState.pollIntervalSeconds,
+                onIntervalSelected = { viewModel.updatePollInterval(it) }
+            )
 
             Text(
                 "Steam API Configuration",
@@ -239,6 +244,50 @@ fun SettingsScreen(
             HelpSection()
 
             AboutSection()
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PollIntervalCard(
+    selectedInterval: Int,
+    onIntervalSelected: (Int) -> Unit
+) {
+    val options = listOf(30 to "30s", 60 to "60s", 120 to "120s")
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SteamCardBg)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                "Poll interval",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = SteamLightGray
+            )
+            Text(
+                "How often the app checks Steam. Faster = more responsive, more battery.",
+                style = MaterialTheme.typography.bodySmall,
+                color = SteamLightGray.copy(alpha = 0.6f)
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                options.forEachIndexed { index, (seconds, label) ->
+                    SegmentedButton(
+                        selected = selectedInterval == seconds,
+                        onClick = { onIntervalSelected(seconds) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = SteamBlue.copy(alpha = 0.2f),
+                            activeContentColor = SteamBlue,
+                            activeBorderColor = SteamBlue
+                        )
+                    ) {
+                        Text(label)
+                    }
+                }
+            }
         }
     }
 }

@@ -23,6 +23,7 @@ data class SettingsUiState(
     val apiKey: String = "",
     val steamId: String = "",
     val monitoringEnabled: Boolean = true,
+    val pollIntervalSeconds: Int = 60,
     val saved: Boolean = false,
     val testStatus: TestStatus = TestStatus.Idle
 )
@@ -38,18 +39,24 @@ class SettingsViewModel @Inject constructor(
     private val _testStatus = MutableStateFlow<TestStatus>(TestStatus.Idle)
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        preferencesRepository.apiKey,
-        preferencesRepository.steamId,
-        preferencesRepository.monitoringEnabled,
+        combine(
+            preferencesRepository.apiKey,
+            preferencesRepository.steamId,
+            preferencesRepository.monitoringEnabled,
+            preferencesRepository.pollIntervalSeconds
+        ) { apiKey, steamId, monitoring, pollInterval ->
+            Triple(apiKey, steamId, Pair(monitoring, pollInterval))
+        },
         _saved,
         _testStatus
-    ) { values ->
+    ) { base, saved, testStatus ->
         SettingsUiState(
-            apiKey = values[0] as String,
-            steamId = values[1] as String,
-            monitoringEnabled = values[2] as Boolean,
-            saved = values[3] as Boolean,
-            testStatus = values[4] as TestStatus
+            apiKey = base.first,
+            steamId = base.second,
+            monitoringEnabled = base.third.first,
+            pollIntervalSeconds = base.third.second,
+            saved = saved,
+            testStatus = testStatus
         )
     }.stateIn(
         scope = viewModelScope,
@@ -90,6 +97,12 @@ class SettingsViewModel @Inject constructor(
             preferencesRepository.setMonitoringEnabled(enabled)
             if (enabled) SteamMonitorService.start(appContext)
             else SteamMonitorService.stop(appContext)
+        }
+    }
+
+    fun updatePollInterval(seconds: Int) {
+        viewModelScope.launch {
+            preferencesRepository.setPollIntervalSeconds(seconds)
         }
     }
 

@@ -17,7 +17,9 @@ import com.steamtimeline.app.data.repository.PreferencesRepository
 import com.steamtimeline.app.data.repository.SteamRepository
 import com.steamtimeline.app.domain.SessionTracker
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,6 +30,8 @@ class SteamMonitorService : LifecycleService() {
     @Inject lateinit var sessionTracker: SessionTracker
     @Inject lateinit var steamRepository: SteamRepository
     @Inject lateinit var preferencesRepository: PreferencesRepository
+
+    private var pollingJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -48,7 +52,8 @@ class SteamMonitorService : LifecycleService() {
 
         startForeground(NOTIFICATION_ID, buildNotification("Monitoring Steam activity…"))
 
-        lifecycleScope.launch {
+        pollingJob?.cancel()
+        pollingJob = lifecycleScope.launch {
             sessionTracker.cleanup()
             while (isActive) {
                 runCatching { sessionTracker.poll() }
@@ -57,7 +62,10 @@ class SteamMonitorService : LifecycleService() {
                     if (active != null) "Now playing: ${active.gameName}"
                     else "Monitoring Steam activity…"
                 )
-                delay(POLL_INTERVAL_MS)
+                val intervalMs = runCatching {
+                    preferencesRepository.pollIntervalSeconds.first() * 1000L
+                }.getOrDefault(POLL_INTERVAL_MS)
+                delay(intervalMs)
             }
         }
 
